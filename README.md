@@ -229,6 +229,92 @@ create_auto_scaling_group()
 
  - Terminate the problematic instance, allowing the ASG to replace it.  - Send a notification through SNS to the administrators. 
 
+```
+import boto3
+sns_client = boto3.client('sns', region_name='ap-south-1') 
+
+topic_name = 'rams-sns'
+
+response = sns_client.create_topic(Name=topic_name)
+
+topic_arn = response['TopicArn']
+print(f'Topic created: {topic_arn}')
+
+protocol = 'email'
+endpoint = '24ram46r@gmail.com'
+
+sns_client.subscribe(
+    TopicArn=topic_arn,
+    Protocol=protocol,
+    Endpoint=endpoint
+ )
+```
+
+topic_arn='arn:aws:sns:ap-south-1:295390363791:rams-sns'
+
+```
+import boto3
+
+client = boto3.client('lambda' , region_name='ap-south-1')
+
+with open('code.zip', 'rb') as file:
+    zip_contents = file.read()
+response = client.create_function(
+    Code={
+        'ZipFile': zip_contents  
+    },
+    FunctionName='rk-temp',
+    Handler='index.handler',
+    MemorySize=256,
+    Publish=True,
+    Role='arn:aws:iam::295390363791:role/rk-temp',
+    Runtime='python3.11',
+    # Tags={
+    #     'DEPARTMENT': 'Assets',
+    # },
+    Timeout=15,
+    TracingConfig={
+        'Mode': 'Active',
+    },
+)
+```
+* yourlambdafunctionarn='arn:aws:lambda:ap-south-1:295390363791:function:rk-temp'
+
+```
+function_name = 'rk-temp'
+sns_topic_arn = 'arn:aws:sns:ap-south-1:295390363791:rk-temp'
+
+policy = {
+    'Version': '2012-10-17',
+    'Statement': [
+        {
+            'Effect': 'Allow',
+            'Principal': {
+                'Service': 'lambda.amazonaws.com'
+            },
+            'Action': 'lambda:InvokeFunction',
+            'Resource': yourlambdafunctionarn,
+            'Condition': {
+                'ArnLike': {
+                    'AWS:SourceArn': sns_topic_arn
+                }
+            }
+        }
+    ]
+}
+
+response = client.add_permission(
+    FunctionName=function_name,
+    StatementId='sns-permission',
+    Action='lambda:InvokeFunction',
+    Principal='sns.amazonaws.com',
+    SourceArn='arn:aws:sns:ap-south-1:295390363791:rams-sns',
+    SourceAccount='295390363791'  
+)
+
+print(response)
+```
+
 5. S3 Logging & Monitoring: 
 
  - Configure the ALB to send access logs to the S3 bucket. 
@@ -237,11 +323,66 @@ create_auto_scaling_group()
 
  - If any predefined criteria are met during the log analysis, the Lambda function sends a  notification via SNS. 
 
+```
+ import boto3
+ import csv
+ s3_client = boto3.client('s3')
+ region='ap-south-1'
+ bucket_name = 'rams-s3'
+ location = {'LocationConstraint': region}
+ s3_client.create_bucket(Bucket=bucket_name, CreateBucketConfiguration=location)
+ response = s3_client.get_bucket_location(Bucket=bucket_name)
+ bucket_location = response['LocationConstraint']
+ s3_bucket = f'arn:aws:s3:::{bucket_name}'
+
+```
+
+```
+import boto3
+
+elbv2_client = boto3.client('elbv2', region_name='ap-south-1')
+
+alb_arn = 'arn:aws:elasticloadbalancing:ap-south-1:295390363791:loadbalancer/app/rams-alb/5a90975daf5cef5c'
+
+s3_bucket_name = 'rams-s3'  
+
+elbv2_client.modify_load_balancer_attributes(
+    LoadBalancerArn=alb_arn,
+    Attributes=[
+        {
+            'Key': 'access_logs.s3.enabled',
+            'Value': 'true'
+        },
+        {
+            'Key': 'access_logs.s3.bucket',
+            'Value': s3_bucket_name
+        }
+    ]
+)
+```
+{
+  "Id": "Policy1699339671246",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1699339659619",
+      "Action": ["s3:*", "autoscaling-plans:*", "ec2:*", "elasticloadbalancing:*"],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::rams-s3",
+      "Principal": "*"
+    }
+  ]
+}
+
+
 6. SNS Notifications: 
 
  - Set up different SNS topics for different alerts (e.g., health issues, scaling events, high traffic). 
 
  - Integrate SNS with Lambda so that administrators receive SMS or email notifications. 
+
+ ##### Successfully set up AWS SNS topics for various alerts, such as health issues, scaling events, and high traffic. These alerts are seamlessly integrated with AWS Lambda, ensuring that administrators receive timely notifications via SMS or email. Your system is now equipped to provide proactive monitoring and alerting, enhancing its overall operational efficiency  
+
 
 7. Infrastructure Automation: 
 
@@ -252,3 +393,5 @@ create_auto_scaling_group()
  - Updates any component as required. 
 
  - Tears down everything when the application is no longer needed. 
+
+ #####  Successfully created a versatile and efficient infrastructure management script using boto3 that empowers you to deploy, update, and tear down your entire application infrastructure effortlessly.
